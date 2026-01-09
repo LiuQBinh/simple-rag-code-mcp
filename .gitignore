@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.log
+.env
+.env.local
+*.cache
+.DS_Store
+*.tsbuildinfo
+.mcp-config.json
