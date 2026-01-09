@@ -16,6 +16,58 @@ flowchart LR
     style D fill:#e1ffe1
 ```
 
+## Agent Tool Call Flow
+
+```mermaid
+flowchart TB
+    subgraph Agent["🤖 AI Agent (Cursor/Claude/etc)"]
+        AgentRequest["Agent needs to:<br/>- Search code<br/>- Find files<br/>- Read code<br/>- Manage codebases"]
+    end
+
+    subgraph MCPServer["🔧 MCP Server"]
+        Server["MCP Server<br/>index.ts"]
+        Router{"Route by<br/>Tool Name"}
+    end
+
+    subgraph Tools["🛠️ Available Tools"]
+        SearchTool["codebase_search<br/>Semantic search"]
+        GrepTool["codebase_grep<br/>Text/regex search"]
+        FindTool["find_file<br/>Find files by name"]
+        ReadTool["read_file<br/>Read file content"]
+        ListTool["list_codebases<br/>List codebases"]
+        AddTool["add_codebase<br/>Add codebase"]
+        IndexTool["index_codebase<br/>Index for search"]
+        GetIndexedTool["get_indexed_codebases<br/>Get indexed list"]
+    end
+
+    AgentRequest -->|"1. CallToolRequest"| Server
+    Server --> Router
+
+    Router -->|"codebase_search"| SearchTool
+    Router -->|"codebase_grep"| GrepTool
+    Router -->|"find_file"| FindTool
+    Router -->|"read_file"| ReadTool
+    Router -->|"list_codebases"| ListTool
+    Router -->|"add_codebase"| AddTool
+    Router -->|"index_codebase"| IndexTool
+    Router -->|"get_indexed_codebases"| GetIndexedTool
+
+    SearchTool -->|"Results"| Server
+    GrepTool -->|"Results"| Server
+    FindTool -->|"Results"| Server
+    ReadTool -->|"Results"| Server
+    ListTool -->|"Results"| Server
+    AddTool -->|"Results"| Server
+    IndexTool -->|"Results"| Server
+    GetIndexedTool -->|"Results"| Server
+
+    Server -->|"2. JSON-RPC Response"| AgentRequest
+
+    style Agent fill:#e1f5ff
+    style MCPServer fill:#fff4e1
+    style Tools fill:#ffe1f5
+```
+
 ## Features
 
 - **Semantic Search**: Search code by meaning using embeddings
@@ -223,58 +275,6 @@ sequenceDiagram
     Tools-->>MCP: File content
 
     MCP-->>Agent: Return file content
-```
-
-## Agent Tool Call Flow
-
-```mermaid
-flowchart TB
-    subgraph Agent["🤖 AI Agent (Cursor/Claude/etc)"]
-        AgentRequest["Agent needs to:<br/>- Search code<br/>- Find files<br/>- Read code<br/>- Manage codebases"]
-    end
-
-    subgraph MCPServer["🔧 MCP Server"]
-        Server["MCP Server<br/>index.ts"]
-        Router{"Route by<br/>Tool Name"}
-    end
-
-    subgraph Tools["🛠️ Available Tools"]
-        SearchTool["codebase_search<br/>Semantic search"]
-        GrepTool["codebase_grep<br/>Text/regex search"]
-        FindTool["find_file<br/>Find files by name"]
-        ReadTool["read_file<br/>Read file content"]
-        ListTool["list_codebases<br/>List codebases"]
-        AddTool["add_codebase<br/>Add codebase"]
-        IndexTool["index_codebase<br/>Index for search"]
-        GetIndexedTool["get_indexed_codebases<br/>Get indexed list"]
-    end
-
-    AgentRequest -->|"1. CallToolRequest"| Server
-    Server --> Router
-
-    Router -->|"codebase_search"| SearchTool
-    Router -->|"codebase_grep"| GrepTool
-    Router -->|"find_file"| FindTool
-    Router -->|"read_file"| ReadTool
-    Router -->|"list_codebases"| ListTool
-    Router -->|"add_codebase"| AddTool
-    Router -->|"index_codebase"| IndexTool
-    Router -->|"get_indexed_codebases"| GetIndexedTool
-
-    SearchTool -->|"Results"| Server
-    GrepTool -->|"Results"| Server
-    FindTool -->|"Results"| Server
-    ReadTool -->|"Results"| Server
-    ListTool -->|"Results"| Server
-    AddTool -->|"Results"| Server
-    IndexTool -->|"Results"| Server
-    GetIndexedTool -->|"Results"| Server
-
-    Server -->|"2. JSON-RPC Response"| AgentRequest
-
-    style Agent fill:#e1f5ff
-    style MCPServer fill:#fff4e1
-    style Tools fill:#ffe1f5
 ```
 
 ## Architecture Overview
