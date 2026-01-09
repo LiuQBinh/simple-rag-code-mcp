@@ -93,17 +93,7 @@ yarn build
 
 ## Configuration
 
-### Environment Variables
-
-You can configure codebases using environment variables:
-
-```bash
-export MCP_CODEBASES='[{"name":"my-project","path":"/path/to/project"}]'
-```
-
-### Config File
-
-Alternatively, create a `.mcp-config.json` file in the project root:
+Create a `.mcp-config.json` file in the project root:
 
 ```json
 {
@@ -292,7 +282,6 @@ flowchart TB
     Router -->|Index| Indexer[Code Indexer<br/>codebase/indexer.ts]
     
     Manager -->|Load Config| Config[Config Manager<br/>config.ts]
-    Config -->|Read| EnvVars[Environment Variables]
     Config -->|Read| ConfigFile[.mcp-config.json]
     
     SearchTool -->|Query Embeddings| Indexer
@@ -334,7 +323,7 @@ flowchart TB
 
 ## How It Works
 
-1. **Codebase Management**: Codebases are configured via environment variables, config file, or runtime API
+1. **Codebase Management**: Codebases are configured via config file or runtime API
 2. **Indexing**: For semantic search, codebases need to be indexed first. The indexer:
    - Walks through code files in the codebase
    - Chunks code into smaller pieces

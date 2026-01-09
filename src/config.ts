@@ -60,22 +60,7 @@ export class ConfigManager {
   }
 
   private loadConfig(): ServerConfig {
-    // Try to load from environment variables first
-    const envCodebases = process.env.MCP_CODEBASES;
-    if (envCodebases) {
-      try {
-        const codebases = JSON.parse(envCodebases) as CodebaseConfig[];
-        console.log(`[ConfigManager] Loaded ${codebases.length} codebases from environment variables`);
-        return {
-          ...DEFAULT_CONFIG,
-          codebases,
-        };
-      } catch (error) {
-        console.warn('Failed to parse MCP_CODEBASES from environment:', error);
-      }
-    }
-
-    // Try to load from config file
+    // Load from config file
     console.log(`[ConfigManager] Looking for config file at: ${CONFIG_FILE}`);
     if (existsSync(CONFIG_FILE)) {
       try {
