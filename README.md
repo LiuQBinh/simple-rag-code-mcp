@@ -10,10 +10,10 @@ flowchart LR
     B -->|Execute| C["🛠️ Tools<br/>Search/Grep/Read"]
     C -->|Results| D["📤 Response<br/>Return to Agent"]
     
-    style A fill:#e1f5ff
-    style B fill:#fff4e1
-    style C fill:#ffe1f5
-    style D fill:#e1ffe1
+    style A stroke:#333,stroke-width:2px
+    style B stroke:#333,stroke-width:2px
+    style C stroke:#333,stroke-width:2px
+    style D stroke:#333,stroke-width:2px
 ```
 
 ## Agent Tool Call Flow
@@ -63,9 +63,9 @@ flowchart TB
 
     Server -->|"2. JSON-RPC Response"| AgentRequest
 
-    style Agent fill:#e1f5ff
-    style MCPServer fill:#fff4e1
-    style Tools fill:#ffe1f5
+    style Agent stroke:#333,stroke-width:2px
+    style MCPServer stroke:#333,stroke-width:2px
+    style Tools stroke:#333,stroke-width:2px
 ```
 
 ## Features
