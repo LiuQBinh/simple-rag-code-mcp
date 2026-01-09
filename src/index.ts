@@ -12,6 +12,7 @@ import { codebaseManager } from './codebase/manager.js';
 import { semanticSearch, indexCodebase, getIndexedCodebases } from './tools/search.js';
 import { grep } from './tools/grep.js';
 import { readFile } from './tools/read.js';
+import { findFile } from './tools/find.js';
 
 const server = new Server(
   {
@@ -116,6 +117,30 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: 'find_file',
+        description: 'Find files by name/path pattern across codebases. Similar to Command+P in VSCode. Supports wildcard patterns (*).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            pattern: {
+              type: 'string',
+              description: 'The file name or path pattern to search for (supports wildcard *). Example: "auth.ts", "utils/*.ts", "*component*"',
+            },
+            codebaseNames: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Optional: specific codebases to search. If not provided, searches all codebases.',
+            },
+            maxResults: {
+              type: 'number',
+              description: 'Maximum number of results to return (default: 50)',
+              default: 50,
+            },
+          },
+          required: ['pattern'],
+        },
+      },
+      {
         name: 'list_codebases',
         description: 'List all configured codebases.',
         inputSchema: {
@@ -144,13 +169,27 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'index_codebase',
         description:
-          'Index a codebase for semantic search. This may take some time for large codebases.',
+          'Index a codebase for semantic search. This may take some time for large codebases. Use maxFiles to limit files per batch to avoid timeout.',
         inputSchema: {
           type: 'object',
           properties: {
             codebaseName: {
               type: 'string',
               description: 'The name of the codebase to index',
+            },
+            maxFiles: {
+              type: 'number',
+              description: 'Maximum number of files to index in this batch (default: unlimited). Use this to avoid timeout on large codebases.',
+            },
+            batchSize: {
+              type: 'number',
+              description: 'Number of files to process in parallel (default: 50)',
+              default: 50,
+            },
+            skipLargeFiles: {
+              type: 'boolean',
+              description: 'Skip files larger than 10MB (default: true)',
+              default: true,
             },
           },
           required: ['codebaseName'],
@@ -292,6 +331,43 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      case 'find_file': {
+        const {
+          pattern,
+          codebaseNames,
+          maxResults = 50,
+        } = args as {
+          pattern: string;
+          codebaseNames?: string[];
+          maxResults?: number;
+        };
+
+        const results = await findFile(pattern, codebaseNames, {
+          maxResults,
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  results: results.map((r) => ({
+                    filePath: r.filePath,
+                    relativePath: r.relativePath,
+                    codebase: r.codebase,
+                    fileName: r.fileName,
+                  })),
+                  count: results.length,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
       case 'list_codebases': {
         const codebases = codebaseManager.getAllCodebases();
 
@@ -342,9 +418,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'index_codebase': {
-        const { codebaseName } = args as { codebaseName: string };
+        const {
+          codebaseName,
+          maxFiles,
+          batchSize,
+          skipLargeFiles,
+        } = args as {
+          codebaseName: string;
+          maxFiles?: number;
+          batchSize?: number;
+          skipLargeFiles?: boolean;
+        };
 
-        await indexCodebase(codebaseName);
+        const result = await indexCodebase(codebaseName, {
+          maxFiles,
+          batchSize,
+          skipLargeFiles,
+        });
 
         return {
           content: [
@@ -354,6 +444,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 {
                   success: true,
                   message: `Codebase "${codebaseName}" indexed successfully`,
+                  stats: {
+                    indexed: result.indexed,
+                    totalFiles: result.totalFiles,
+                    skipped: result.skipped,
+                    chunks: result.chunks,
+                  },
                 },
                 null,
                 2

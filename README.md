@@ -2,10 +2,25 @@
 
 An MCP (Model Context Protocol) server that provides tools for searching and reading code across multiple codebases. Supports both semantic search (using embeddings) and text/regex search.
 
+## Overall Flow
+
+```mermaid
+flowchart LR
+    A["🤖 AI Agent<br/>Tool Request"] -->|JSON-RPC| B["🔧 MCP Server<br/>Process Request"]
+    B -->|Execute| C["🛠️ Tools<br/>Search/Grep/Read"]
+    C -->|Results| D["📤 Response<br/>Return to Agent"]
+    
+    style A fill:#e1f5ff
+    style B fill:#fff4e1
+    style C fill:#ffe1f5
+    style D fill:#e1ffe1
+```
+
 ## Features
 
 - **Semantic Search**: Search code by meaning using embeddings
 - **Text/Regex Search**: Traditional grep-like search with regex support
+- **File Finder**: Find files by name/path pattern (like Command+P in VSCode)
 - **Multi-codebase Support**: Search and read from multiple codebases simultaneously
 - **File Reading**: Read files with optional line range support
 - **Codebase Management**: Add, list, and manage multiple codebases
@@ -92,16 +107,20 @@ Or for development:
 
 ## Available Tools
 
-### `codebase_search`
+| Tool Name | Description | Required Parameters | Optional Parameters |
+|-----------|-------------|---------------------|---------------------|
+| `codebase_search` | Semantic search across codebases using embeddings | `query` - The search query in natural language | `codebaseNames` - Array of codebase names to search (default: all indexed codebases)<br>`limit` - Maximum number of results (default: 10) |
+| `codebase_grep` | Text/regex search across codebases | `pattern` - The search pattern (regex supported) | `codebaseNames` - Array of codebase names to search<br>`caseSensitive` - Whether search is case sensitive (default: false)<br>`contextLines` - Number of context lines around matches (default: 2)<br>`maxResults` - Maximum number of results (default: 100) |
+| `read_file` | Read a file from a codebase | `codebaseName` - Name of the codebase<br>`filePath` - Relative path to the file | `startLine` - Start line number (1-indexed)<br>`endLine` - End line number (1-indexed) |
+| `find_file` | Find files by name/path pattern across codebases (similar to Command+P in VSCode) | `pattern` - The file name or path pattern to search for (supports wildcard `*`) | `codebaseNames` - Array of codebase names to search (default: all codebases)<br>`maxResults` - Maximum number of results (default: 50) |
+| `list_codebases` | List all configured codebases | None | None |
+| `add_codebase` | Add a new codebase to the server | `name` - Unique name for the codebase<br>`path` - Absolute path to the codebase directory | None |
+| `index_codebase` | Index a codebase for semantic search (may take time for large codebases) | `codebaseName` - Name of the codebase to index | `maxFiles` - Maximum number of files to index in this batch (default: unlimited)<br>`batchSize` - Number of files to process in parallel (default: 50)<br>`skipLargeFiles` - Skip files larger than 10MB (default: true) |
+| `get_indexed_codebases` | Get list of codebases that have been indexed for semantic search | None | None |
 
-Semantic search across codebases using embeddings.
+### Examples
 
-**Parameters:**
-- `query` (required): The search query in natural language
-- `codebaseNames` (optional): Array of codebase names to search. If not provided, searches all indexed codebases.
-- `limit` (optional): Maximum number of results (default: 10)
-
-**Example:**
+#### `codebase_search`
 ```json
 {
   "query": "function that handles user authentication",
@@ -110,18 +129,7 @@ Semantic search across codebases using embeddings.
 }
 ```
 
-### `codebase_grep`
-
-Text/regex search across codebases.
-
-**Parameters:**
-- `pattern` (required): The search pattern (regex supported)
-- `codebaseNames` (optional): Array of codebase names to search
-- `caseSensitive` (optional): Whether search is case sensitive (default: false)
-- `contextLines` (optional): Number of context lines around matches (default: 2)
-- `maxResults` (optional): Maximum number of results (default: 100)
-
-**Example:**
+#### `codebase_grep`
 ```json
 {
   "pattern": "function\\s+\\w+Auth",
@@ -130,17 +138,7 @@ Text/regex search across codebases.
 }
 ```
 
-### `read_file`
-
-Read a file from a codebase.
-
-**Parameters:**
-- `codebaseName` (required): Name of the codebase
-- `filePath` (required): Relative path to the file
-- `startLine` (optional): Start line number (1-indexed)
-- `endLine` (optional): End line number (1-indexed)
-
-**Example:**
+#### `read_file`
 ```json
 {
   "codebaseName": "my-project",
@@ -150,21 +148,22 @@ Read a file from a codebase.
 }
 ```
 
-### `list_codebases`
+#### `find_file`
+```json
+{
+  "pattern": "auth.ts",
+  "codebaseNames": ["my-project"],
+  "maxResults": 20
+}
+```
 
-List all configured codebases.
+**Pattern Examples for `find_file`:**
+- `"auth.ts"` - Find files named `auth.ts`
+- `"utils/*.ts"` - Find all `.ts` files in `utils` directories
+- `"*component*"` - Find files containing "component" in name or path
+- `"src/utils"` - Find files with "src/utils" in path
 
-**Parameters:** None
-
-### `add_codebase`
-
-Add a new codebase to the server.
-
-**Parameters:**
-- `name` (required): Unique name for the codebase
-- `path` (required): Absolute path to the codebase directory
-
-**Example:**
+#### `add_codebase`
 ```json
 {
   "name": "another-project",
@@ -172,25 +171,111 @@ Add a new codebase to the server.
 }
 ```
 
-### `index_codebase`
-
-Index a codebase for semantic search. This may take some time for large codebases.
-
-**Parameters:**
-- `codebaseName` (required): Name of the codebase to index
-
-**Example:**
+#### `index_codebase`
 ```json
 {
-  "codebaseName": "my-project"
+  "codebaseName": "my-project",
+  "maxFiles": 1000,
+  "batchSize": 50,
+  "skipLargeFiles": true
 }
 ```
 
-### `get_indexed_codebases`
+**Note:** For very large codebases, you can index in batches by calling `index_codebase` multiple times with increasing `maxFiles` values, or index incrementally by starting with a smaller `maxFiles` and increasing it gradually.
 
-Get list of codebases that have been indexed for semantic search.
+## Example Tool Call Sequence
 
-**Parameters:** None
+```mermaid
+sequenceDiagram
+    participant Agent as 🤖 AI Agent
+    participant MCP as 🔧 MCP Server
+    participant Tools as 🛠️ Tools
+    participant FS as 💾 File System
+
+    Note over Agent: Agent wants to find authentication code
+
+    Agent->>MCP: codebase_search({<br/>  query: "user authentication",<br/>  codebaseNames: ["my-project"],<br/>  limit: 10<br/>})
+    
+    alt Codebase not indexed
+        MCP->>Tools: Check if indexed
+        Tools-->>MCP: Not indexed
+        MCP->>Tools: index_codebase("my-project")
+        Tools->>FS: Walk & read files
+        FS-->>Tools: File contents
+        Tools->>Tools: Generate embeddings
+        Tools-->>MCP: Indexing complete
+    end
+
+    MCP->>Tools: semanticSearch(query)
+    Tools->>Tools: Generate query embedding
+    Tools->>Tools: Cosine similarity search
+    Tools-->>MCP: Top 10 results
+
+    MCP-->>Agent: Return search results
+
+    Note over Agent: Agent wants to read specific file
+
+    Agent->>MCP: read_file({<br/>  codebaseName: "my-project",<br/>  filePath: "src/auth.ts",<br/>  startLine: 10,<br/>  endLine: 50<br/>})
+    
+    MCP->>Tools: readFile(codebase, path)
+    Tools->>FS: Read file
+    FS-->>Tools: File content
+    Tools-->>MCP: File content
+
+    MCP-->>Agent: Return file content
+```
+
+## Agent Tool Call Flow
+
+```mermaid
+flowchart TB
+    subgraph Agent["🤖 AI Agent (Cursor/Claude/etc)"]
+        AgentRequest["Agent needs to:<br/>- Search code<br/>- Find files<br/>- Read code<br/>- Manage codebases"]
+    end
+
+    subgraph MCPServer["🔧 MCP Server"]
+        Server["MCP Server<br/>index.ts"]
+        Router{"Route by<br/>Tool Name"}
+    end
+
+    subgraph Tools["🛠️ Available Tools"]
+        SearchTool["codebase_search<br/>Semantic search"]
+        GrepTool["codebase_grep<br/>Text/regex search"]
+        FindTool["find_file<br/>Find files by name"]
+        ReadTool["read_file<br/>Read file content"]
+        ListTool["list_codebases<br/>List codebases"]
+        AddTool["add_codebase<br/>Add codebase"]
+        IndexTool["index_codebase<br/>Index for search"]
+        GetIndexedTool["get_indexed_codebases<br/>Get indexed list"]
+    end
+
+    AgentRequest -->|"1. CallToolRequest"| Server
+    Server --> Router
+
+    Router -->|"codebase_search"| SearchTool
+    Router -->|"codebase_grep"| GrepTool
+    Router -->|"find_file"| FindTool
+    Router -->|"read_file"| ReadTool
+    Router -->|"list_codebases"| ListTool
+    Router -->|"add_codebase"| AddTool
+    Router -->|"index_codebase"| IndexTool
+    Router -->|"get_indexed_codebases"| GetIndexedTool
+
+    SearchTool -->|"Results"| Server
+    GrepTool -->|"Results"| Server
+    FindTool -->|"Results"| Server
+    ReadTool -->|"Results"| Server
+    ListTool -->|"Results"| Server
+    AddTool -->|"Results"| Server
+    IndexTool -->|"Results"| Server
+    GetIndexedTool -->|"Results"| Server
+
+    Server -->|"2. JSON-RPC Response"| AgentRequest
+
+    style Agent fill:#e1f5ff
+    style MCPServer fill:#fff4e1
+    style Tools fill:#ffe1f5
+```
 
 ## Architecture Overview
 

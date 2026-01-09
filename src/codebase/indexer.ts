@@ -6,6 +6,9 @@ import { codebaseManager } from './manager.js';
 
 env.allowLocalModels = true;
 
+// Maximum file size to index (10MB)
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
 export interface CodeChunk {
   content: string;
   filePath: string;
@@ -166,8 +169,26 @@ export class CodeIndexer {
     return files;
   }
 
-  async indexCodebase(codebaseName: string): Promise<void> {
+  async indexCodebase(
+    codebaseName: string,
+    options: {
+      maxFiles?: number;
+      batchSize?: number;
+      skipLargeFiles?: boolean;
+    } = {}
+  ): Promise<{
+    indexed: number;
+    totalFiles: number;
+    skipped: number;
+    chunks: number;
+  }> {
     await this.initialize();
+
+    const {
+      maxFiles = Infinity,
+      batchSize = 50,
+      skipLargeFiles = true,
+    } = options;
 
     const codebasePath = codebaseManager.getCodebasePath(codebaseName);
     if (!codebasePath) {
@@ -175,22 +196,61 @@ export class CodeIndexer {
     }
 
     const files = await this.walkDirectory(codebasePath, codebaseName);
+    const filesToIndex = files.slice(0, maxFiles);
     const allChunks: IndexedChunk[] = [];
+    let indexedCount = 0;
+    let skippedCount = 0;
 
-    console.log(`Indexing ${files.length} files in codebase "${codebaseName}"...`);
+    console.log(`Indexing ${filesToIndex.length} files in codebase "${codebaseName}"...`);
 
-    for (const filePath of files) {
-      try {
-        const content = readFileSync(filePath, 'utf-8');
-        const chunks = await this.indexFile(codebaseName, filePath, content);
+    // Process files in batches to avoid blocking
+    for (let i = 0; i < filesToIndex.length; i += batchSize) {
+      const batch = filesToIndex.slice(i, i + batchSize);
+      const batchPromises = batch.map(async (filePath) => {
+        try {
+          // Check file size before reading
+          if (skipLargeFiles) {
+            const stats = statSync(filePath);
+            if (stats.size > MAX_FILE_SIZE) {
+              skippedCount++;
+              console.warn(`Skipping large file: ${filePath} (${(stats.size / 1024 / 1024).toFixed(2)}MB)`);
+              return [];
+            }
+          }
+
+          const content = readFileSync(filePath, 'utf-8');
+          const chunks = await this.indexFile(codebaseName, filePath, content);
+          indexedCount++;
+          return chunks;
+        } catch (error) {
+          console.warn(`Failed to index file ${filePath}:`, error);
+          skippedCount++;
+          return [];
+        }
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+      for (const chunks of batchResults) {
         allChunks.push(...chunks);
-      } catch (error) {
-        console.warn(`Failed to index file ${filePath}:`, error);
+      }
+
+      // Log progress
+      if ((i + batchSize) % (batchSize * 10) === 0 || i + batchSize >= filesToIndex.length) {
+        console.log(`Progress: ${Math.min(i + batchSize, filesToIndex.length)}/${filesToIndex.length} files indexed`);
       }
     }
 
+    // Replace existing chunks (avoid duplicates when re-indexing)
     this.indexedChunks.set(codebaseName, allChunks);
-    console.log(`Indexed ${allChunks.length} chunks from codebase "${codebaseName}"`);
+
+    console.log(`Indexed ${allChunks.length} chunks from ${indexedCount} files in codebase "${codebaseName}" (${skippedCount} skipped)`);
+
+    return {
+      indexed: indexedCount,
+      totalFiles: files.length,
+      skipped: skippedCount,
+      chunks: allChunks.length,
+    };
   }
 
   async search(

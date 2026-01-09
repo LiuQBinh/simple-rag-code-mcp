@@ -36,12 +36,24 @@ export async function semanticSearch(
   }));
 }
 
-export async function indexCodebase(codebaseName: string): Promise<void> {
+export async function indexCodebase(
+  codebaseName: string,
+  options?: {
+    maxFiles?: number;
+    batchSize?: number;
+    skipLargeFiles?: boolean;
+  }
+): Promise<{
+  indexed: number;
+  totalFiles: number;
+  skipped: number;
+  chunks: number;
+}> {
   if (!codebaseManager.getCodebasePath(codebaseName)) {
     throw new Error(`Codebase "${codebaseName}" not found`);
   }
 
-  await codeIndexer.indexCodebase(codebaseName);
+  return await codeIndexer.indexCodebase(codebaseName, options || {});
 }
 
 export function getIndexedCodebases(): string[] {
